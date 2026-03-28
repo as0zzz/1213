@@ -1,0 +1,74 @@
+KillAura (Single / Multi / Switch)
+ClickAura
+MultiAura
+TP-Aura
+InfiniteAura (редко, обычно патчится)
+TriggerBot
+LeftClickMacro / AutoClicker
+
+👉 Автоматическая атака по игрокам/мобам
+
+🎯 Наведение / прицел
+AimAssist
+BowAimbot
+ProjectileAimbot
+SilentAim
+SmoothAim
+
+👉 Помогают наводиться (часто незаметно)
+
+💥 Криты и урон
+Criticals (Packet / Jump / MiniJump)
+AutoCriticals
+DamageBoost
+🛡️ Защита
+AntiKnockback / Velocity
+NoHitDelay
+HurtTime Manipulation
+ShieldBreaker
+AntiBot (фильтр ботов сервера)
+BackTrack (бьёт по прошлой позиции игрока)
+🧠 Автоматизация боя
+AutoArmor
+AutoTotem
+AutoSword
+AutoTool (переключение на нужный предмет)
+AutoGapple
+AutoPotion
+AutoSoup
+AutoRod
+AutoAnchor
+AutoCrystal
+💎 PvP-механики (End/Crystal/Anchor)
+CrystalAura
+AnchorAura
+BedAura (взрывы кроватей в аду/энде)
+HoleFill (закрывает дыры обсидианом)
+Surround (строит защиту вокруг тебя)
+AutoTrap (ловит противника в блоки)
+SelfTrap
+🧱 Контроль противника
+HitBoxes (увеличение хитбокса)
+Reach (дальность удара)
+Velocity Control
+KnockbackPlus
+ComboAssist
+🧨 Тактические функции
+AutoLeave (выход при низком хп)
+AutoLog (то же самое)
+AutoRespawn
+TargetStrafe (движение вокруг цели)
+KeepSprint
+SprintReset
+🧬 Продвинутые (часто в новых клиентах)
+RotationManager / RotationFix
+CPS Bypass
+AttackDelay Control
+SwitchDelay Bypass
+TickBase Manipulation
+PacketAura
+🎣 Дополнительные PvP-фишки
+AutoFishingRod
+AutoBowRelease
+FastBow
+BowSpam
