@@ -1,6 +1,8 @@
 package dev.mdk2.client.core;
 
-import dev.mdk2.client.gui.ClickGuiScreen;
+import dev.mdk2.client.config.ConfigManager;
+import dev.mdk2.client.discord.DiscordRpcService;
+import dev.mdk2.client.gui.ModernClickGuiScreen;
 import dev.mdk2.client.modules.combat.AuraModule;
 import dev.mdk2.client.modules.combat.AimAssistModule;
 import dev.mdk2.client.modules.combat.AutoArmorModule;
@@ -19,6 +21,7 @@ import dev.mdk2.client.modules.combat.VelocityModule;
 import dev.mdk2.client.modules.misc.AutoDropModule;
 import dev.mdk2.client.modules.misc.AutoEatModule;
 import dev.mdk2.client.modules.misc.AutoStealModule;
+import dev.mdk2.client.modules.misc.DiscordRpcModule;
 import dev.mdk2.client.modules.misc.ThemeModule;
 import dev.mdk2.client.modules.movement.AutoFishModule;
 import dev.mdk2.client.modules.movement.AutoMoveModule;
@@ -53,6 +56,7 @@ import dev.mdk2.client.modules.visual.StatusEffectsModule;
 import dev.mdk2.client.modules.visual.TargetEspModule;
 import dev.mdk2.client.modules.visual.TrajectoryModule;
 import dev.mdk2.client.modules.visual.ViewModelModule;
+import dev.mdk2.client.modules.visual.WatermarkModule;
 import dev.mdk2.client.modules.visual.ZoomModule;
 import dev.mdk2.client.modules.xray.BlockEspModule;
 import dev.mdk2.client.modules.xray.EntityEspModule;
@@ -84,6 +88,9 @@ import net.minecraftforge.eventbus.api.SubscribeEvent;
 import net.minecraftforge.common.MinecraftForge;
 import org.lwjgl.glfw.GLFW;
 
+import java.io.IOException;
+import java.nio.file.Path;
+
 public class ClientRuntime {
     private static ClientRuntime instance;
 
@@ -92,6 +99,8 @@ public class ClientRuntime {
     private final ClientEventBus eventBus;
     private final MenuParticleEngine menuParticleEngine;
     private final HudRenderer hudRenderer;
+    private final ConfigManager configManager;
+    private final DiscordRpcService discordRpcService;
 
     private ClientRuntime() {
         this.themeManager = new ThemeManager();
@@ -99,7 +108,10 @@ public class ClientRuntime {
         this.eventBus = new ClientEventBus(this.moduleManager);
         this.menuParticleEngine = new MenuParticleEngine();
         this.hudRenderer = new HudRenderer(this);
+        this.discordRpcService = new DiscordRpcService();
         registerModules();
+        this.configManager = new ConfigManager(configDirectory());
+        bootstrapConfigs();
         MinecraftForge.EVENT_BUS.register(this);
     }
 
@@ -129,8 +141,17 @@ public class ClientRuntime {
         return this.hudRenderer;
     }
 
+    public ConfigManager getConfigManager() {
+        return this.configManager;
+    }
+
+    public DiscordRpcService getDiscordRpcService() {
+        return this.discordRpcService;
+    }
+
     private void registerModules() {
         this.moduleManager.register(new HudModule());
+        this.moduleManager.register(new WatermarkModule());
         this.moduleManager.register(new MenuParticlesModule());
         this.moduleManager.register(new ViewModelModule());
         this.moduleManager.register(new HitChamsModule());
@@ -188,7 +209,19 @@ public class ClientRuntime {
         this.moduleManager.register(new AutoEatModule());
         this.moduleManager.register(new AutoStealModule());
         this.moduleManager.register(new AutoDropModule());
+        this.moduleManager.register(new DiscordRpcModule());
         this.moduleManager.register(new ThemeModule());
+    }
+
+    private void bootstrapConfigs() {
+        try {
+            this.configManager.ensureDefaultConfig(this.moduleManager.getModules());
+        } catch (final IOException ignored) {
+        }
+    }
+
+    private Path configDirectory() {
+        return Minecraft.getInstance().gameDirectory.toPath().resolve("config").resolve("mdk2").resolve("configs");
     }
 
     @SubscribeEvent
@@ -221,10 +254,10 @@ public class ClientRuntime {
 
         if (event.getKey() == GLFW.GLFW_KEY_RIGHT_SHIFT) {
             final Minecraft minecraft = Minecraft.getInstance();
-            if (minecraft.screen instanceof ClickGuiScreen) {
+            if (minecraft.screen instanceof ModernClickGuiScreen) {
                 minecraft.setScreen(null);
             } else {
-                minecraft.setScreen(new ClickGuiScreen(this));
+                minecraft.setScreen(new ModernClickGuiScreen(this));
             }
         }
 

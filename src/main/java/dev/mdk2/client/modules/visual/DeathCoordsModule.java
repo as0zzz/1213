@@ -4,6 +4,7 @@ import com.mojang.blaze3d.matrix.MatrixStack;
 import dev.mdk2.client.core.ClientRuntime;
 import dev.mdk2.client.modules.Category;
 import dev.mdk2.client.modules.Module;
+import dev.mdk2.client.render.HudStyleRenderer;
 import dev.mdk2.client.render.UiRenderer;
 import dev.mdk2.client.settings.ColorSetting;
 import dev.mdk2.client.settings.NumberSetting;
@@ -21,7 +22,7 @@ public class DeathCoordsModule extends Module {
 
     public DeathCoordsModule() {
         super("Death Coords", "Stores and displays the last death coordinates.", Category.VISUAL);
-        this.scale = register(new NumberSetting("Scale", 1.0D, 0.65D, 1.60D, 0.05D));
+        this.scale = register(new NumberSetting("Scale", 0.82D, 0.55D, 1.30D, 0.05D));
         this.outlineColor = register(new ColorSetting("Outline Color", ColorUtil.rgba(118, 146, 255, 255)));
     }
 
@@ -46,19 +47,26 @@ public class DeathCoordsModule extends Module {
             return;
         }
 
-        final int background = ClientRuntime.getInstance().getThemeManager().surface(178);
-        final int outline = ColorUtil.withAlpha(this.outlineColor.getColor(), 42);
+        final int textColor = ClientRuntime.getInstance().getThemeManager().textPrimary();
         final String text = getDisplayText();
-        final double scaleValue = this.scale.getValue().doubleValue();
+        final double scaleValue = displayScale();
         final double x = getRenderX(width, height);
         final double y = getRenderY(width, height);
+        final double baseWidth = getBaseWidth(text);
 
         UiRenderer.push();
         UiRenderer.translate(x, y, 0.0D);
         UiRenderer.scale(scaleValue, scaleValue, 1.0D);
-        UiRenderer.drawRoundedRect(0.0D, 0.0D, getBaseWidth(text), 14.0D, 7.0D, background);
-        UiRenderer.drawRoundedOutline(0.0D, 0.0D, getBaseWidth(text), 14.0D, 7.0D, 1.0D, outline);
-        UiRenderer.drawText(matrixStack, text, 7.0F, 4.0F, ClientRuntime.getInstance().getThemeManager().textPrimary());
+        HudStyleRenderer.drawShell(0.0D, 0.0D, baseWidth, 11.5D, 6.0D, ClientRuntime.getInstance().getThemeManager(), this.outlineColor.getColor());
+        HudStyleRenderer.drawText(
+            matrixStack,
+            text,
+            (baseWidth - HudStyleRenderer.textWidth(text, 0.60D)) / 2.0D,
+            (11.5D - HudStyleRenderer.lineHeight(0.60D)) / 2.0D - 0.45D,
+            0.60D,
+            textColor,
+            ClientRuntime.getInstance().getThemeManager()
+        );
         UiRenderer.pop();
     }
 
@@ -74,11 +82,11 @@ public class DeathCoordsModule extends Module {
     }
 
     public double getDisplayWidth(final boolean preview) {
-        return getBaseWidth(preview ? "Death: -120 64 255" : getDisplayText()) * this.scale.getValue().doubleValue();
+        return getBaseWidth(preview ? "Death: -120 64 255" : getDisplayText()) * displayScale();
     }
 
     public double getDisplayHeight(final boolean preview) {
-        return 14.0D * this.scale.getValue().doubleValue();
+        return 11.5D * displayScale();
     }
 
     public void setPosition(final double x, final double y) {
@@ -95,6 +103,10 @@ public class DeathCoordsModule extends Module {
     }
 
     private double getBaseWidth(final String text) {
-        return Minecraft.getInstance().font.width(text) + 14.0D;
+        return HudStyleRenderer.textWidth(text, 0.60D) + 12.0D;
+    }
+
+    private double displayScale() {
+        return this.scale.getValue().doubleValue() * 0.94D;
     }
 }

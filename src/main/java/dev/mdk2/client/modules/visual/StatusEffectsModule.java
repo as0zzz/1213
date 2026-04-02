@@ -4,6 +4,7 @@ import com.mojang.blaze3d.matrix.MatrixStack;
 import dev.mdk2.client.core.ClientRuntime;
 import dev.mdk2.client.modules.Category;
 import dev.mdk2.client.modules.Module;
+import dev.mdk2.client.render.HudStyleRenderer;
 import dev.mdk2.client.render.UiRenderer;
 import dev.mdk2.client.settings.ColorSetting;
 import dev.mdk2.client.settings.NumberSetting;
@@ -25,7 +26,7 @@ public class StatusEffectsModule extends Module {
 
     public StatusEffectsModule() {
         super("Status Effects", "Shows active potion effects in a compact list.", Category.VISUAL);
-        this.scale = register(new NumberSetting("Scale", 1.0D, 0.65D, 1.60D, 0.05D));
+        this.scale = register(new NumberSetting("Scale", 0.82D, 0.55D, 1.30D, 0.05D));
         this.outlineColor = register(new ColorSetting("Outline Color", ColorUtil.rgba(118, 146, 255, 255)));
     }
 
@@ -54,14 +55,14 @@ public class StatusEffectsModule extends Module {
         final List<String> lines = preview ? getPreviewLines() : getCurrentLines();
         double maxWidth = 72.0D;
         for (final String line : lines) {
-            maxWidth = Math.max(maxWidth, minecraft.font.width(line) + 12.0D);
+            maxWidth = Math.max(maxWidth, HudStyleRenderer.textWidth(line, 0.58D) + 12.0D);
         }
-        return maxWidth * this.scale.getValue().doubleValue();
+        return maxWidth * displayScale();
     }
 
     public double getDisplayHeight(final boolean preview) {
         final int lines = preview ? getPreviewLines().size() : Math.max(1, getCurrentLines().size());
-        return ((lines * 13.0D) + Math.max(0, lines - 1) * 2.0D) * this.scale.getValue().doubleValue();
+        return ((lines * 11.5D) + Math.max(0, lines - 1) * 2.0D) * displayScale();
     }
 
     public void setPosition(final double x, final double y) {
@@ -88,20 +89,26 @@ public class StatusEffectsModule extends Module {
     }
 
     private void renderLines(final MatrixStack matrixStack, final List<String> lines, final double x, final double y) {
-        final double scaleValue = this.scale.getValue().doubleValue();
-        final int background = ClientRuntime.getInstance().getThemeManager().surface(164);
-        final int outline = ColorUtil.withAlpha(this.outlineColor.getColor(), 34);
+        final double scaleValue = displayScale();
+        final int textColor = ClientRuntime.getInstance().getThemeManager().textPrimary();
 
         UiRenderer.push();
         UiRenderer.translate(x, y, 0.0D);
         UiRenderer.scale(scaleValue, scaleValue, 1.0D);
         double currentY = 0.0D;
         for (final String text : lines) {
-            final double boxWidth = Minecraft.getInstance().font.width(text) + 12.0D;
-            UiRenderer.drawRoundedRect(0.0D, currentY, boxWidth, 13.0D, 6.0D, background);
-            UiRenderer.drawRoundedOutline(0.0D, currentY, boxWidth, 13.0D, 6.0D, 1.0D, outline);
-            UiRenderer.drawText(matrixStack, text, 6.0F, (float) (currentY + 3.5D), ClientRuntime.getInstance().getThemeManager().textPrimary());
-            currentY += 15.0D;
+            final double boxWidth = HudStyleRenderer.textWidth(text, 0.58D) + 12.0D;
+            HudStyleRenderer.drawShell(0.0D, currentY, boxWidth, 11.5D, 6.0D, ClientRuntime.getInstance().getThemeManager(), this.outlineColor.getColor());
+            HudStyleRenderer.drawText(
+                matrixStack,
+                text,
+                (boxWidth - HudStyleRenderer.textWidth(text, 0.58D)) / 2.0D,
+                currentY + (11.5D - HudStyleRenderer.lineHeight(0.58D)) / 2.0D - 0.4D,
+                0.58D,
+                textColor,
+                ClientRuntime.getInstance().getThemeManager()
+            );
+            currentY += 13.5D;
         }
         UiRenderer.pop();
     }
@@ -127,5 +134,9 @@ public class StatusEffectsModule extends Module {
         lines.add("Speed II 1:24");
         lines.add("Strength 0:48");
         return lines;
+    }
+
+    private double displayScale() {
+        return this.scale.getValue().doubleValue() * 0.94D;
     }
 }

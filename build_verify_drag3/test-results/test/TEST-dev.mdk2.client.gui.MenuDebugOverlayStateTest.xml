@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<testsuite name="dev.mdk2.client.gui.MenuDebugOverlayStateTest" tests="3" skipped="0" failures="0" errors="0" timestamp="2026-03-28T16:40:07" hostname="LEGION" time="0.002">
+  <properties/>
+  <testcase name="clampKeepsOverlayInsideScreenPadding" classname="dev.mdk2.client.gui.MenuDebugOverlayStateTest" time="0.002"/>
+  <testcase name="defaultPositionAnchorsOverlayToTopRight" classname="dev.mdk2.client.gui.MenuDebugOverlayStateTest" time="0.0"/>
+  <testcase name="softClampAllowsPartialOffscreenButKeepsHeaderReachable" classname="dev.mdk2.client.gui.MenuDebugOverlayStateTest" time="0.0"/>
+  <system-out><![CDATA[]]></system-out>
+  <system-err><![CDATA[]]></system-err>
+</testsuite>

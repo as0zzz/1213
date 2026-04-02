@@ -25,4 +25,10 @@ public class ModeSetting extends Setting<String> {
         final int index = this.modes.indexOf(getValue());
         setValueInternal(this.modes.get((index - 1 + this.modes.size()) % this.modes.size()));
     }
+
+    public void setValue(final String value) {
+        if (this.modes.contains(value)) {
+            setValueInternal(value);
+        }
+    }
 }

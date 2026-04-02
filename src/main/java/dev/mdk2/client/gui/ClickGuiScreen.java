@@ -9,6 +9,7 @@ import dev.mdk2.client.modules.visual.HudModule;
 import dev.mdk2.client.modules.visual.MenuParticlesModule;
 import dev.mdk2.client.modules.visual.DeathCoordsModule;
 import dev.mdk2.client.modules.visual.StatusEffectsModule;
+import dev.mdk2.client.modules.visual.WatermarkModule;
 import dev.mdk2.client.modules.xray.RadarModule;
 import dev.mdk2.client.render.HudRenderer;
 import dev.mdk2.client.render.UiRenderer;
@@ -321,13 +322,11 @@ public class ClickGuiScreen extends Screen {
 
         final int panelColor = themeManager.isGlass() ? ColorUtil.rgba(24, 30, 42, 118) : ColorUtil.rgba(14, 17, 24, 238);
         final int headerColor = themeManager.isGlass() ? ColorUtil.rgba(255, 255, 255, 18) : ColorUtil.rgba(24, 29, 40, 250);
-        final int glowColor = ColorUtil.withAlpha(themeManager.accent(panel.index * 0.12D), focused ? 20 : themeManager.isGlass() ? 14 : 10);
         final int borderColor = ColorUtil.withAlpha(themeManager.accent(panel.index * 0.12D), focused ? 58 : themeManager.isGlass() ? 44 : 32);
         final int innerOutlineColor = focused
             ? ColorUtil.withAlpha(themeManager.accent(panel.index * 0.12D), 20)
             : themeManager.isGlass() ? ColorUtil.rgba(255, 255, 255, 12) : ColorUtil.rgba(255, 255, 255, 8);
 
-        UiRenderer.drawShadow(panel.renderX, panel.renderY, panel.width, panel.height, focused ? 4 : 3, glowColor);
         UiRenderer.drawRoundedRect(panel.renderX, panel.renderY, panel.width, panel.height, 14.0D, panelColor);
         UiRenderer.drawRoundedRect(panel.renderX + 1.0D, panel.renderY + 1.0D, panel.width - 2.0D, 26.0D, 13.0D, headerColor);
         UiRenderer.drawRoundedOutline(panel.renderX, panel.renderY, panel.width, panel.height, 14.0D, 1.0D, borderColor);
@@ -690,7 +689,6 @@ public class ClickGuiScreen extends Screen {
         final double hueMarkerX = squareX + this.activeColorSetting.getHue() * squareSize;
         final double alphaMarkerX = squareX + this.activeColorSetting.getAlpha() * squareSize;
 
-        UiRenderer.drawShadow(x, y, width, height, 3, ColorUtil.withAlpha(themeManager.accent(0.0D), 16));
         UiRenderer.drawRoundedRect(x, y, width, height, 12.0D, background);
         UiRenderer.drawRoundedRect(x + 1.0D, y + 1.0D, width - 2.0D, height - 2.0D, 11.0D, inner);
         UiRenderer.drawRoundedOutline(x, y, width, height, 12.0D, 1.0D, outline);
@@ -835,7 +833,10 @@ public class ClickGuiScreen extends Screen {
             final HudRenderer.HudArea area = renderer.getWatermarkArea();
             final double newX = MathUtil.clamp(mouseX - this.hudDragOffsetX, 0.0D, screenWidth - area.getWidth());
             final double newY = MathUtil.clamp(mouseY - this.hudDragOffsetY, 0.0D, screenHeight - area.getHeight());
-            hudModule.setWatermarkPosition(screenWidth - area.getWidth() - newX, newY);
+            final WatermarkModule watermarkModule = this.runtime.getModuleManager().get(WatermarkModule.class);
+            if (watermarkModule != null) {
+                watermarkModule.setPosition(newX, newY);
+            }
             return;
         }
 

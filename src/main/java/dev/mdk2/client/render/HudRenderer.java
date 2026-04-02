@@ -7,10 +7,13 @@ import dev.mdk2.client.modules.Module;
 import dev.mdk2.client.modules.visual.DeathCoordsModule;
 import dev.mdk2.client.modules.visual.HudModule;
 import dev.mdk2.client.modules.visual.StatusEffectsModule;
+import dev.mdk2.client.modules.visual.WatermarkModule;
 import dev.mdk2.client.modules.xray.RadarModule;
 import dev.mdk2.client.util.ColorUtil;
 import net.minecraft.client.Minecraft;
+import net.minecraft.client.multiplayer.ServerData;
 import net.minecraft.client.network.play.NetworkPlayerInfo;
+import net.minecraft.util.math.vector.Vector3d;
 
 import java.util.ArrayList;
 import java.util.Collections;
@@ -24,6 +27,7 @@ public class HudRenderer {
     private final HudArea radarArea = new HudArea();
     private final HudArea deathCoordsArea = new HudArea();
     private final HudArea statusEffectsArea = new HudArea();
+    private final WatermarkSystemSampler systemSampler = new WatermarkSystemSampler();
 
     private int frames;
     private int sampledFps = 60;
@@ -64,7 +68,8 @@ public class HudRenderer {
     private void renderInternal(final MatrixStack matrixStack, final boolean editorPreview) {
         final Minecraft minecraft = Minecraft.getInstance();
         final HudModule hudModule = this.runtime.getModuleManager().get(HudModule.class);
-        if (hudModule == null) {
+        final WatermarkModule watermarkModule = this.runtime.getModuleManager().get(WatermarkModule.class);
+        if (hudModule == null || watermarkModule == null) {
             this.watermarkArea.clear();
             this.modulesArea.clear();
             return;
@@ -75,22 +80,50 @@ public class HudRenderer {
         final ThemeManager themeManager = this.runtime.getThemeManager();
         final int screenWidth = minecraft.getWindow().getGuiScaledWidth();
         final int screenHeight = minecraft.getWindow().getGuiScaledHeight();
-        renderWatermarkCluster(matrixStack, minecraft, hudModule, themeManager, screenWidth, editorPreview);
+        renderWatermarkCluster(matrixStack, minecraft, hudModule, watermarkModule, themeManager, screenWidth, editorPreview);
         renderLeftArrayList(matrixStack, minecraft, hudModule, themeManager, editorPreview);
         renderWidgetEditorPreview(matrixStack, minecraft, themeManager, screenWidth, screenHeight, editorPreview);
     }
 
     private void renderWatermarkCluster(final MatrixStack matrixStack, final Minecraft minecraft, final HudModule hudModule,
+                                        final WatermarkModule watermarkModule,
                                         final ThemeManager themeManager, final int screenWidth, final boolean editorPreview) {
         final List<HudChip> chips = new ArrayList<HudChip>();
-        if (hudModule.isWatermarkEnabled()) {
-            chips.add(createWatermarkChip(minecraft));
+        if (!hudModule.isWatermarkEnabled()) {
+            this.watermarkArea.clear();
+            return;
         }
-        if (hudModule.isFpsCounterEnabled()) {
-            chips.add(createMetricChip(minecraft, this.sampledFps + " FPS"));
+
+        final WatermarkSystemSampler.Snapshot systemSnapshot = this.systemSampler.snapshot(watermarkModule.isGpuLoadEnabled());
+        if (watermarkModule.isLogoEnabled()) {
+            chips.add(createWatermarkChip(WatermarkMetricFormatter.logo()));
         }
-        if (hudModule.isPingEnabled()) {
-            chips.add(createMetricChip(minecraft, getPing() + " MS"));
+        if (watermarkModule.isFramerateEnabled()) {
+            chips.add(createMetricChip(WatermarkMetricFormatter.framerate(this.sampledFps)));
+        }
+        if (watermarkModule.isPingEnabled()) {
+            chips.add(createMetricChip(WatermarkMetricFormatter.ping(getPing())));
+        }
+        if (watermarkModule.isSpeedEnabled()) {
+            chips.add(createMetricChip(WatermarkMetricFormatter.speed(getMovementSpeed(minecraft))));
+        }
+        if (watermarkModule.isGpuLoadEnabled()) {
+            chips.add(createMetricChip(WatermarkMetricFormatter.load("GPU", systemSnapshot.gpuLoad)));
+        }
+        if (watermarkModule.isCpuLoadEnabled()) {
+            chips.add(createMetricChip(WatermarkMetricFormatter.load("CPU", systemSnapshot.cpuLoad)));
+        }
+        if (watermarkModule.isMemoryLoadEnabled()) {
+            chips.add(createMetricChip(WatermarkMetricFormatter.load("MEM", systemSnapshot.memoryLoad)));
+        }
+        if (watermarkModule.isUsernameEnabled()) {
+            chips.add(createMetricChip(WatermarkMetricFormatter.username(getUsername(minecraft))));
+        }
+        if (watermarkModule.isConfigNameEnabled()) {
+            chips.add(createMetricChip(WatermarkMetricFormatter.configName(this.runtime.getConfigManager().getSelectedConfigName())));
+        }
+        if (watermarkModule.isServerIpEnabled()) {
+            chips.add(createMetricChip(WatermarkMetricFormatter.server(getServerAddress(minecraft))));
         }
 
         if (chips.isEmpty()) {
@@ -99,9 +132,9 @@ public class HudRenderer {
         }
 
         if (hudModule.isSolidLayout()) {
-            renderSolidCluster(matrixStack, themeManager, screenWidth, chips, hudModule, editorPreview);
+            renderSolidCluster(matrixStack, themeManager, screenWidth, chips, watermarkModule, editorPreview);
         } else {
-            renderSeparateCluster(matrixStack, themeManager, screenWidth, chips, hudModule, editorPreview);
+            renderSeparateCluster(matrixStack, themeManager, screenWidth, chips, watermarkModule, editorPreview);
         }
     }
 
@@ -130,34 +163,42 @@ public class HudRenderer {
         });
 
         final int count = visibleModules.size();
-        final double boxWidth = 94.0D;
-        final double boxHeight = count >= 8 ? 12.0D : count >= 6 ? 13.5D : 15.0D;
-        final double textScale = count >= 8 ? 0.76D : count >= 6 ? 0.82D : 0.88D;
-        final double accentHeight = Math.max(5.0D, boxHeight - 6.0D);
-        final double spacing = count >= 8 ? 3.0D : 3.5D;
+        final double boxHeight = count >= 8 ? 11.0D : count >= 6 ? 11.8D : 12.6D;
+        final double textScale = count >= 8 ? 0.56D : count >= 6 ? 0.60D : 0.64D;
+        final double accentHeight = Math.max(3.5D, boxHeight - 5.2D);
+        final double spacing = 2.4D;
         final double baseX = hudModule.getModulesOffsetX();
         double y = hudModule.getModulesOffsetY();
         final double startY = y;
+        double maxWidth = 64.0D;
 
         int index = 0;
         for (final Module module : visibleModules) {
             final double animation = module.getToggleAnimation();
+            final String text = trimToWidth(module.getName(), (int) Math.max(26.0D, 78.0D / textScale));
+            final double textWidth = HudStyleRenderer.textWidth(text, textScale);
+            final double boxWidth = Math.max(64.0D, textWidth + 16.0D);
             final double x = baseX - (1.0D - animation) * 10.0D;
-            final int surface = themeManager.isGlass() ? ColorUtil.rgba(24, 30, 42, 108) : ColorUtil.rgba(15, 19, 27, 228);
-            final int outline = themeManager.isGlass() ? ColorUtil.rgba(255, 255, 255, 24) : ColorUtil.rgba(255, 255, 255, 14);
-            final String text = trimToWidth(module.getName(), (int) ((boxWidth - 18.0D) / textScale));
+            maxWidth = Math.max(maxWidth, boxWidth);
 
-            UiRenderer.drawRoundedRect(x, y, boxWidth, boxHeight, 7.0D, surface);
-            UiRenderer.drawRoundedOutline(x, y, boxWidth, boxHeight, 7.0D, 1.0D, outline);
-            UiRenderer.drawRoundedRect(x + 6.0D, y + (boxHeight - accentHeight) / 2.0D, 1.5D, accentHeight, 0.75D, themeManager.accent(index * 0.14D));
-            drawScaledText(matrixStack, text, x + 11.0D, y + (boxHeight - 8.0D * textScale) / 2.0D - 0.2D, textScale, themeManager.textPrimary());
+            HudStyleRenderer.drawShell(x, y, boxWidth, boxHeight, 7.0D, themeManager, themeManager.accent(index * 0.14D));
+            UiRenderer.drawRoundedRect(x + 4.0D, y + (boxHeight - accentHeight) / 2.0D, 1.2D, accentHeight, 0.6D, themeManager.accent(index * 0.14D));
+            HudStyleRenderer.drawText(
+                matrixStack,
+                text,
+                x + Math.max(8.0D, (boxWidth - textWidth) / 2.0D),
+                y + (boxHeight - HudStyleRenderer.lineHeight(textScale)) / 2.0D - 0.55D,
+                textScale,
+                themeManager.textPrimary(),
+                themeManager
+            );
 
             y += boxHeight + spacing;
             index++;
         }
 
         final double totalHeight = visibleModules.isEmpty() ? boxHeight : y - startY - spacing;
-        this.modulesArea.set(baseX, startY, boxWidth, Math.max(boxHeight, totalHeight));
+        this.modulesArea.set(baseX, startY, maxWidth, Math.max(boxHeight, totalHeight));
         if (editorPreview) {
             drawEditorOutline(this.modulesArea, matrixStack, themeManager, "Modules");
         }
@@ -212,20 +253,14 @@ public class HudRenderer {
     }
 
     private void renderSolidCluster(final MatrixStack matrixStack, final ThemeManager themeManager, final int screenWidth,
-                                    final List<HudChip> chips, final HudModule hudModule, final boolean editorPreview) {
-        final double height = 17.0D;
+                                    final List<HudChip> chips, final WatermarkModule watermarkModule, final boolean editorPreview) {
+        final double height = 12.0D;
         final double totalWidth = getClusterWidth(chips, 0.0D);
-        final double x = screenWidth - totalWidth - hudModule.getWatermarkOffsetX();
-        final double y = hudModule.getWatermarkOffsetY();
-        final int surface = themeManager.isGlass() ? ColorUtil.rgba(23, 29, 40, 112) : ColorUtil.rgba(12, 16, 24, 232);
-        final int outline = themeManager.isGlass() ? ColorUtil.rgba(255, 255, 255, 34) : ColorUtil.rgba(255, 255, 255, 18);
-        final int accentGlow = ColorUtil.withAlpha(themeManager.accent(0.0D), themeManager.isGlass() ? 18 : 14);
+        final double x = watermarkModule.getRenderX(screenWidth, totalWidth);
+        final double y = watermarkModule.getRenderY();
 
         this.watermarkArea.set(x, y, totalWidth, height);
-        UiRenderer.drawShadow(x, y, totalWidth, height, 3, accentGlow);
-        UiRenderer.drawRoundedRect(x, y, totalWidth, height, 8.0D, surface);
-        UiRenderer.drawRoundedOutline(x, y, totalWidth, height, 8.0D, 1.0D, outline);
-        UiRenderer.drawRoundedOutline(x + 0.5D, y + 0.5D, totalWidth - 1.0D, height - 1.0D, 7.5D, 1.0D, ColorUtil.withAlpha(themeManager.accent(0.0D), 30));
+        HudStyleRenderer.drawShell(x, y, totalWidth, height, 7.0D, themeManager, themeManager.accent(0.0D));
 
         double cursor = x;
         for (int i = 0; i < chips.size(); i++) {
@@ -234,7 +269,7 @@ public class HudRenderer {
             cursor += chip.width;
 
             if (i < chips.size() - 1) {
-                UiRenderer.drawLine(cursor, y + 4.0D, cursor, y + height - 4.0D, 1.0D,
+                UiRenderer.drawLine(cursor, y + 2.5D, cursor, y + height - 2.5D, 1.0D,
                     themeManager.isGlass() ? ColorUtil.rgba(255, 255, 255, 18) : ColorUtil.rgba(255, 255, 255, 10));
             }
         }
@@ -244,25 +279,17 @@ public class HudRenderer {
     }
 
     private void renderSeparateCluster(final MatrixStack matrixStack, final ThemeManager themeManager, final int screenWidth,
-                                       final List<HudChip> chips, final HudModule hudModule, final boolean editorPreview) {
-        final double gap = 4.0D;
-        final double height = 17.0D;
+                                       final List<HudChip> chips, final WatermarkModule watermarkModule, final boolean editorPreview) {
+        final double gap = 2.5D;
+        final double height = 12.0D;
         final double totalWidth = getClusterWidth(chips, gap);
-        final double y = hudModule.getWatermarkOffsetY();
-        double x = screenWidth - totalWidth - hudModule.getWatermarkOffsetX();
+        final double y = watermarkModule.getRenderY();
+        double x = watermarkModule.getRenderX(screenWidth, totalWidth);
         this.watermarkArea.set(x, y, totalWidth, height);
 
         for (int i = 0; i < chips.size(); i++) {
             final HudChip chip = chips.get(i);
-            final int surface = themeManager.isGlass() ? ColorUtil.rgba(23, 29, 40, 112) : ColorUtil.rgba(12, 16, 24, 232);
-            final int outline = themeManager.isGlass() ? ColorUtil.rgba(255, 255, 255, 34) : ColorUtil.rgba(255, 255, 255, 18);
-            final int accentGlow = ColorUtil.withAlpha(themeManager.accent(i * 0.1D), themeManager.isGlass() ? 18 : 14);
-
-            UiRenderer.drawShadow(x, y, chip.width, height, 3, accentGlow);
-            UiRenderer.drawRoundedRect(x, y, chip.width, height, 8.0D, surface);
-            UiRenderer.drawRoundedOutline(x, y, chip.width, height, 8.0D, 1.0D, outline);
-            UiRenderer.drawRoundedOutline(x + 0.5D, y + 0.5D, chip.width - 1.0D, height - 1.0D, 7.5D, 1.0D,
-                ColorUtil.withAlpha(themeManager.accent(i * 0.1D), 28));
+            HudStyleRenderer.drawShell(x, y, chip.width, height, 7.0D, themeManager, themeManager.accent(i * 0.1D));
             renderChipContent(matrixStack, chip, x, y, height, themeManager, false, i);
             x += chip.width + gap;
         }
@@ -273,39 +300,29 @@ public class HudRenderer {
 
     private void renderChipContent(final MatrixStack matrixStack, final HudChip chip, final double x, final double y, final double height,
                                    final ThemeManager themeManager, final boolean solidLayout, final int index) {
-        final double accentX = x + 5.0D;
-        UiRenderer.drawRoundedRect(accentX, y + 4.0D, 1.5D, height - 8.0D, 0.75D, themeManager.accent(index * 0.12D));
-
-        if (chip.type == HudChipType.WATERMARK) {
-            UiRenderer.drawText(matrixStack, chip.primaryText, (float) (x + 10.0D), (float) (y + 5.0D), themeManager.textPrimary());
-
-            final double avatarRadius = 4.0D;
-            final double avatarCenterX = x + chip.width - 9.0D;
-            final double avatarCenterY = y + height / 2.0D;
-            UiRenderer.drawCircle(avatarCenterX, avatarCenterY, avatarRadius, themeManager.isGlass() ? ColorUtil.rgba(255, 255, 255, 28) : ColorUtil.rgba(45, 52, 70, 255));
-            UiRenderer.drawRoundedOutline(
-                avatarCenterX - avatarRadius,
-                avatarCenterY - avatarRadius,
-                avatarRadius * 2.0D,
-                avatarRadius * 2.0D,
-                avatarRadius,
-                1.0D,
-                solidLayout ? ColorUtil.rgba(255, 255, 255, 22) : themeManager.outline(22)
-            );
-            return;
-        }
-
-        UiRenderer.drawText(matrixStack, chip.primaryText, (float) (x + 10.0D), (float) (y + 5.0D), themeManager.textPrimary());
+        final double textScale = chip.type == HudChipType.WATERMARK ? 0.60D : 0.58D;
+        final double accentX = x + 3.5D;
+        final double accentHeight = height - 5.0D;
+        final double textWidth = HudStyleRenderer.textWidth(chip.primaryText, textScale);
+        UiRenderer.drawRoundedRect(accentX, y + (height - accentHeight) / 2.0D, 1.1D, accentHeight, 0.55D, themeManager.accent(index * 0.12D));
+        HudStyleRenderer.drawText(
+            matrixStack,
+            chip.primaryText,
+            x + Math.max(6.5D, (chip.width - textWidth) / 2.0D),
+            y + (height - HudStyleRenderer.lineHeight(textScale)) / 2.0D - 0.55D,
+            textScale,
+            themeManager.textPrimary(),
+            themeManager
+        );
     }
 
-    private HudChip createWatermarkChip(final Minecraft minecraft) {
-        final String title = "MDK2 CLIENT";
-        final double width = Math.max(70.0D, minecraft.font.width(title) + 26.0D);
-        return new HudChip(HudChipType.WATERMARK, title, width);
+    private HudChip createWatermarkChip(final String text) {
+        final double width = Math.max(46.0D, HudStyleRenderer.textWidth(text, 0.60D) + 14.0D);
+        return new HudChip(HudChipType.WATERMARK, text, width);
     }
 
-    private HudChip createMetricChip(final Minecraft minecraft, final String text) {
-        final double width = Math.max(38.0D, minecraft.font.width(text) + 16.0D);
+    private HudChip createMetricChip(final String text) {
+        final double width = Math.max(32.0D, HudStyleRenderer.textWidth(text, 0.58D) + 12.0D);
         return new HudChip(HudChipType.METRIC, text, width);
     }
 
@@ -335,6 +352,32 @@ public class HudRenderer {
 
         final NetworkPlayerInfo info = minecraft.player.connection.getPlayerInfo(minecraft.player.getUUID());
         return info == null ? 0 : info.getLatency();
+    }
+
+    private double getMovementSpeed(final Minecraft minecraft) {
+        if (minecraft.player == null) {
+            return 0.0D;
+        }
+        final Vector3d motion = minecraft.player.getDeltaMovement();
+        return Math.sqrt(motion.x * motion.x + motion.z * motion.z) * 20.0D;
+    }
+
+    private String getUsername(final Minecraft minecraft) {
+        if (minecraft.player != null && minecraft.player.getGameProfile() != null) {
+            return minecraft.player.getGameProfile().getName();
+        }
+        return minecraft.getUser() != null ? minecraft.getUser().getName() : "Player";
+    }
+
+    private String getServerAddress(final Minecraft minecraft) {
+        if (minecraft.hasSingleplayerServer()) {
+            return "Singleplayer";
+        }
+        final ServerData serverData = minecraft.getCurrentServer();
+        if (serverData == null) {
+            return "Main Menu";
+        }
+        return serverData.ip == null || serverData.ip.trim().isEmpty() ? serverData.name : serverData.ip;
     }
 
     private void sampleFps() {
@@ -367,7 +410,7 @@ public class HudRenderer {
 
         UiRenderer.drawRoundedOutline(area.x - 1.0D, area.y - 1.0D, area.width + 2.0D, area.height + 2.0D, 9.0D, 1.0D,
             ColorUtil.withAlpha(themeManager.accent(0.0D), 90));
-        UiRenderer.drawText(matrixStack, label, (float) (area.x + 2.0D), (float) (area.y - 8.0D), ColorUtil.withAlpha(themeManager.textSecondary(), 170));
+        HudStyleRenderer.drawText(matrixStack, label, area.x + 2.0D, area.y - 7.0D, 0.58D, ColorUtil.withAlpha(themeManager.textSecondary(), 170), themeManager);
     }
 
     private void drawWidgetPreview(final HudArea area, final MatrixStack matrixStack, final ThemeManager themeManager, final String label) {
@@ -375,9 +418,7 @@ public class HudRenderer {
             return;
         }
 
-        UiRenderer.drawRoundedRect(area.x, area.y, area.width, area.height, 10.0D, themeManager.isGlass()
-            ? ColorUtil.rgba(22, 28, 39, 68)
-            : ColorUtil.rgba(14, 18, 26, 118));
+        HudStyleRenderer.drawShell(area.x, area.y, area.width, area.height, 8.0D, themeManager, themeManager.accent(0.0D));
         drawEditorOutline(area, matrixStack, themeManager, label);
     }
 
